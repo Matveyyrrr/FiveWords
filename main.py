@@ -172,13 +172,14 @@ def end_screen():
                 terminate()
             elif event.type == pygame.KEYDOWN or \
                     event.type == pygame.MOUSEBUTTONDOWN:
-                start_screen()
+
                 return
         pygame.display.flip()
         clock.tick(FPS)
 
 start_screen()
 NOUNS = load_from_file("Text/words.txt")
+
 
 running = True
 board = Board(WIDTH, HEIGHT)
