@@ -179,6 +179,7 @@ def end_screen():
 
 start_screen()
 NOUNS = load_from_file("Text/words.txt")
+NORMAL_WORDS = load_from_file("Text/words2.txt")
 
 
 running = True
