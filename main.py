@@ -26,6 +26,14 @@ STAGES = {1: 'stage_1.png', 2: 'stage_3.png',
           3: 'stage_5.png', 4: 'stage_6.png',
           5: 'stage_8.png', 6: 'stage_10.png', }
 
+STAGES1 = {0: 'heart0.png', 1: 'heart1.png',
+           2: 'heart2.png', 3: 'heart3.png',
+           4: 'heart4.png', 5: 'heart5.png',
+           6: 'heart6.png', }
+
+def load_from_file(file_name):
+    f = open(file_name, "r", encoding="utf-8")
+    return f.readlines()
 def load_image(name, colorkey=None):
     fname = os.path.join("data", name)
     if not os.path.isfile(fname):
@@ -52,7 +60,7 @@ def draw_cell(letter, letter_col, cell_col, row, col, cell_size=40, not_filled=F
     text = font.render(f'{letter}', True, letter_col)
     screen.blit(text, (10 + (col + 1) * MARGIN + col * cell_size, 10 + (row + 1) * MARGIN + row * cell_size))
 
-def draw_keyboard():
+def draw_keyboard(cell_size=None):
     alpha = "qwertyuiopasdfghjklzxcvbnm "
     row = 6
     col = 0
@@ -148,7 +156,10 @@ class Board:
     def render_try(self, scr, tries=0):
         if tries > 0:
             fon = pygame.transform.scale(load_image(STAGES[tries], -1), (300, 300))
+            lifes = pygame.transform.scale(load_image(STAGES1[tries], (255, 255, 255)), (150, 20))
             screen.blit(fon, (250, 10))
+            screen.blit(lifes, (500, 1))
+
 
 class Word(Board):
     def __init__(self):
@@ -196,7 +207,7 @@ def start_screen():
                   "Чтобы начать игру кликните мышкой"]
     # pygame.init()
     clock = pygame.time.Clock()
-    fon = pygame.transform.scale(load_image('fon.jpg'), SIZE)
+    fon = pygame.transform.scale(load_image('newfon.jpg'), SIZE)
     screen.blit(fon, (0, 0))
     font = pygame.font.Font(None, 30)
     text_coord = 50
@@ -230,7 +241,7 @@ def game_over_screen():
                   ]
     # pygame.init()
     clock = pygame.time.Clock()
-    fon = pygame.transform.scale(load_image('fon.jpg'), SIZE)
+    fon = pygame.transform.scale(load_image('newfon.jpg'), SIZE)
     screen.blit(fon, (0, 0))
     font = pygame.font.Font(None, 30)
     text_coord = 50
@@ -249,20 +260,20 @@ def game_over_screen():
                 terminate()
             elif event.type == pygame.KEYDOWN or \
                     event.type == pygame.MOUSEBUTTONDOWN:
-                start_screen()
+
                 return
         pygame.display.flip()
         clock.tick(FPS)
 
 start_screen()
-
+NORMAL_WORDS = load_from_file("Text/words.txt")
 running = True
 
 board = Board(WIDTH, HEIGHT)
 keyboard = Keyboard(WIDTH, HEIGHT)
 word_input = Word()
 tries = 0
-answer = "СЛОВО" # random.choice(NORMAL_WORDS)
+answer = random.choice(NORMAL_WORDS)
 while running and tries <= 6:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
