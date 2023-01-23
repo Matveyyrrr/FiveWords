@@ -13,31 +13,28 @@ HEIGHT = 40
 cell_color = "#FFFF00"
 MARGIN = 10
 FPS = 50
-LETTER_COLORS = {
-    1: (255, 255, 255),
-    2: (255, 180, 0),
-    3: ()
-}
-
-# NOUNS = load_from_file("words.txt")
-# NORMAL_WORDS = load_from_file("")
-
-STAGES = {1: 'stage_1.png', 2: 'stage_3.png',
-          3: 'stage_5.png', 4: 'stage_6.png',
-          5: 'stage_8.png', 6: 'stage_10.png', }
-
-STAGES1 = {0: 'heart0.png', 1: 'heart1.png',
-           2: 'heart2.png', 3: 'heart3.png',
-           4: 'heart4.png', 5: 'heart5.png',
-           6: 'heart6.png', }
+STAGES_1 = {0: 'stage_0.png',
+              1: 'stage_1.png', 2: 'stage_3.png',
+              3: 'stage_5.png', 4: 'stage_6.png',
+              5: 'stage_8.png', 6: 'stage_10.png'}
+STAGES_2 = {0: 'heart0.png',
+            1: 'heart1.png', 2: 'heart2.png',
+            3: 'heart3.png', 4: 'heart4.png',
+            5: 'heart5.png', 6: 'heart6.png'}
 
 def load_from_file(file_name):
-    f = open(file_name, "r", encoding="utf-8")
-    return f.readlines()
+    fname = os.path.join("text", file_name)
+    if not os.path.isfile(fname):
+        print(f"файл '{fname}' отсутствует, либо был удален")
+        sys.exit()
+    f = open(fname, "rt", encoding="utf-8")
+    return [word.upper().strip() for word in f.readlines()]
+
+
 def load_image(name, colorkey=None):
     fname = os.path.join("data", name)
     if not os.path.isfile(fname):
-        print("Такого файла нет")
+        print(f"файл '{fname}' отсутствует, либо был удален")
         sys.exit()
     img = pygame.image.load(fname)
     if colorkey is not None:
@@ -49,6 +46,7 @@ def load_image(name, colorkey=None):
             img = img.convert_alpha()
     return img
 
+
 def draw_cell(letter, letter_col, cell_col, row, col, cell_size=40, not_filled=False):
     x = row * cell_size + (row + 1) * MARGIN
     y = col * cell_size + (col + 1) * MARGIN
@@ -58,23 +56,8 @@ def draw_cell(letter, letter_col, cell_col, row, col, cell_size=40, not_filled=F
         pygame.draw.rect(screen, cell_col, (y, x, WIDTH, HEIGHT), border_radius=7)
     font = pygame.font.Font(None, 40)
     text = font.render(f'{letter}', True, letter_col)
-    screen.blit(text, (10 + (col + 1) * MARGIN + col * cell_size, 10 + (row + 1) * MARGIN + row * cell_size))
+    screen.blit(text, (8 + (col + 1) * MARGIN + col * cell_size, 10 + (row + 1) * MARGIN + row * cell_size))
 
-def draw_keyboard(cell_size=None):
-    alpha = "qwertyuiopasdfghjklzxcvbnm "
-    row = 6
-    col = 0
-    for letter in alpha:
-        x = row * 40 + (row + 1) * MARGIN
-        y = col * 40 + (col + 1) * MARGIN
-        pygame.draw.rect(screen, (100, 100, 100), (y, x, WIDTH, HEIGHT), border_radius=7)
-        font = pygame.font.Font(None, 40)
-        text = font.render(f'{letter}', True, (255, 255, 255))
-        screen.blit(text, (10 + (col + 1) * MARGIN + col * cell_size, 10 + (row + 1) * MARGIN + row * 40))
-        col += 1
-        if col > 8:
-            row += 1
-            col = 0
 
 class Keyboard:
     # создание поля
@@ -120,21 +103,22 @@ class Keyboard:
             return self.on_press(x, y)
 
     def on_press(self, x, y):
-        # print(x, y)
-        # print(self.board[x][y])
         return self.board[x][y]
+
 
 class Board:
     # создание поля
-    def __init__(self, width, height, left=10, top=10, cell_size=40):
+    flag = False
+    def __init__(self, width, height, answers=""):
+        self.cnt = 0
+        self.win_or_lose = False
         self.width = width
         self.height = height
         self.board = [[""] * 5 for _ in range(6)]
-        # значения по умолчанию
         self.left = 0
         self.top = 0
-        self.cell_size = 0
-        self.set_view(left, top, cell_size)
+        self.cell_size = 40
+        self.set_view(self.left, self.top, self.cell_size)
 
     def set_view(self, left, top, cell_size):
         self.left = left
@@ -142,23 +126,44 @@ class Board:
         self.cell_size = cell_size
 
     def render(self, scr):
+        answers = list(answer)
         for row in range(6):
+            self.cnt = 0
             for col in range(5):
                 if self.board[row][col] == "":
                     draw_cell(self.board[row][col], (255, 0, 255), cell_color, row, col, not_filled=True)
-                elif self.board[row][col] in answer[col]:
+                elif self.board[row][col] == answer[col]:
+                    self.cnt += 1
                     draw_cell(self.board[row][col], (0, 0, 0), (255, 255, 0), row, col)
-                elif self.board[row][col] in answer:
+                elif self.board[row][col] in answers:
                     draw_cell(self.board[row][col], (0, 0, 0), (255, 255, 255), row, col)
                 else:
                     draw_cell(self.board[row][col], (255, 255, 255), (100, 100, 100), row, col)
+                if self.board[row][col] in answers:
+                    answers.remove(self.board[row][col])
+            if self.cnt == 5:
+                self.win_or_lose = True
 
-    def render_try(self, scr, tries=0):
-        if tries > 0:
-            fon = pygame.transform.scale(load_image(STAGES[tries], -1), (300, 300))
-            lifes = pygame.transform.scale(load_image(STAGES1[tries], (255, 255, 255)), (150, 20))
-            screen.blit(fon, (250, 10))
-            screen.blit(lifes, (500, 1))
+    def win(self):
+        return self.win_or_lose
+
+
+class Lifes:
+
+    def __init__(self, tries=0):
+        self.tries = tries
+        self.image_1 = load_image(STAGES_1[self.tries], -1)
+        self.image_2 = load_image(STAGES_2[self.tries], (255, 255, 255))
+
+    def render(self, scr, tries=0, ):
+        viselica = pygame.transform.scale(self.image_1, (300, 300))
+        screen.blit(viselica, (200, 2))
+        hearts = pygame.transform.scale(self.image_2, (150, 30))
+        screen.blit(hearts, (480, 2))
+
+    def next_img(self, img):
+        self.image_1 = load_image(STAGES_1[(self.tries) % 7], -1)
+        self.image_2 = load_image(STAGES_2[(self.tries) % 7], -1)
 
 
 class Word(Board):
@@ -168,7 +173,7 @@ class Word(Board):
 
     def render(self, scr):
         for col, letter in enumerate(self.board):
-            draw_cell(letter, (255, 0, 255), (100, 100, 100), 6, col)
+            draw_cell(letter, (200, 200, 255), (50, 50, 255), 6, col)
         draw_cell("<-", cell_color, (100, 100, 100), 6, 5)
         draw_cell("\/", cell_color, (100, 100, 100), 6, 6)
 
@@ -188,15 +193,26 @@ class Word(Board):
             else:
                 return False
 
-    def add_letter(self, x, y):
-        print("YES")
 
-    def clear_letter(self, x, y):
-        print("NO")
+class Game:
+    def __init__(self, board, word, keyboard):
+        self.board = board
+        self.word = word
+        self.keyboard = keyboard
+
+    def render(self, screen):
+        self.board.render(screen)
+        self.keyboard.render(screen)
+        self.word.render(screen)
+        if board.win():
+            win_screen()
+            return
+
 
 def terminate():
     pygame.quit()
     sys.exit()
+
 
 def start_screen():
     intro_text = ["ЗАСТАВКА", "",
@@ -205,7 +221,6 @@ def start_screen():
                   "нажмите клавишу пробел",
                   "",
                   "Чтобы начать игру кликните мышкой"]
-    # pygame.init()
     clock = pygame.time.Clock()
     fon = pygame.transform.scale(load_image('newfon.jpg'), SIZE)
     screen.blit(fon, (0, 0))
@@ -230,19 +245,17 @@ def start_screen():
         pygame.display.flip()
         clock.tick(FPS)
 
-def win_screen():
-    pass
 
-def game_over_screen():
-    intro_text = ["GAME OVER", "",
-                  "Вы проиграли",
-                  "Чтобы начать новую игру, ",
-                  "нажмите клавишу пробел",
+def win_screen():
+    intro_text = ["Поздравляем!", "",
+                  f"Вы выиграли, это было слово {answer.strip()}",
                   ]
-    # pygame.init()
     clock = pygame.time.Clock()
-    fon = pygame.transform.scale(load_image('newfon.jpg'), SIZE)
-    screen.blit(fon, (0, 0))
+    screen.fill("blue")
+    viselica = pygame.transform.scale(load_image(STAGES_1[tries - 1], -1), (SIZE[0] // 2, SIZE[1] // 2))
+    screen.blit(viselica, (0, 180))
+    lifes = pygame.transform.scale(load_image(STAGES_2[tries - 1], "DD0D14"), (150, 30))
+    screen.blit(lifes, (350, 200))
     font = pygame.font.Font(None, 30)
     text_coord = 50
     for line in intro_text:
@@ -260,21 +273,62 @@ def game_over_screen():
                 terminate()
             elif event.type == pygame.KEYDOWN or \
                     event.type == pygame.MOUSEBUTTONDOWN:
-
                 return
         pygame.display.flip()
         clock.tick(FPS)
 
-start_screen()
-NORMAL_WORDS = load_from_file("Text/words.txt")
-running = True
 
-board = Board(WIDTH, HEIGHT)
+def game_over_screen():
+    intro_text = ["GAME OVER", "",
+                  f"Вы проиграли, это было слово {answer.strip()}",
+                  ]
+    clock = pygame.time.Clock()
+    # fon = pygame.transform.scale(load_image('newfon.jpg'), SIZE)
+    # screen.blit(fon, (0, 0))
+    screen.fill("red")
+    viselica = pygame.transform.scale(load_image('stage_10.png'), (SIZE[0] // 2, SIZE[1] // 2))
+    screen.blit(viselica, (0, 180))
+    lifes = pygame.transform.scale(load_image('heart6.png'), (150, 30))
+    screen.blit(lifes, (350, 200))
+    font = pygame.font.Font(None, 30)
+    text_coord = 50
+    for line in intro_text:
+        string_rendered = font.render(line, 1, pygame.Color('white'))
+        intro_rect = string_rendered.get_rect()
+        text_coord += 10
+        intro_rect.top = text_coord
+        intro_rect.x = 10
+        text_coord += intro_rect.height
+        screen.blit(string_rendered, intro_rect)
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.KEYDOWN or \
+                    event.type == pygame.MOUSEBUTTONDOWN:
+                return
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+start_screen()
+
+running = True
+WORDS = load_from_file("words.txt")
+NORMAL_WORDS = load_from_file("words2.txt")
+win_or_lose = False
+answer = random.choice(NORMAL_WORDS)
+board = Board(WIDTH, HEIGHT, answers=answer[:])
 keyboard = Keyboard(WIDTH, HEIGHT)
 word_input = Word()
+game = Game(board, word_input, keyboard)
 tries = 0
-answer = random.choice(NORMAL_WORDS)
-while running and tries <= 6:
+lifes = Lifes()
+hod = False
+
+print(answer)
+while running and tries < 6:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -288,12 +342,14 @@ while running and tries <= 6:
             if word == answer:
                 running = False
             tries += 1
+            lifes.tries += 1
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if keyboard.get_cell(event.pos):
                 last = "".join(word_input.board).strip("_")
                 text = (last + keyboard.get_press(event.pos)).ljust(5, "_")
                 if len(text) == 5:
                     word_input.board = list(text)
+                    hod = True
             if word_input.get_press(event.pos):
                 last = "".join(word_input.board).strip("_")
                 if len(last) > 0:
@@ -301,6 +357,8 @@ while running and tries <= 6:
                 text = last.ljust(5, "_")
                 if len(text) == 5:
                     word_input.board = list(text)
+                    hod = True
+
             if word_input.get_cell(event.pos):
                 if not word_input.get_press(event.pos):
                     last = "".join(word_input.board).strip("_")
@@ -308,16 +366,20 @@ while running and tries <= 6:
                     if len(text) == 5:
                         board.board[tries] = list(text)
                         tries += 1
+                        lifes.tries += 1
                         word_input.board = ["_"] * 5
+    if board.win():
+        win_or_lose = True
+        running = False
+        win_screen()
+        break
 
-
-
-    if tries >= 6 or not running:
-        game_over_screen()
-    keyboard.render(screen)
-    board.render(screen)
-    word_input.render(screen)
-    if running:
-        board.render_try(screen, tries)
+    game.render(screen)
+    if running and tries > 0:
+        lifes.next_img(1)
+        lifes.render(screen, tries)
     pygame.display.update()
     screen.fill("#99D9EA")
+
+if not win_or_lose:
+    game_over_screen()
