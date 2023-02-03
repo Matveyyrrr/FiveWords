@@ -13,6 +13,9 @@ HEIGHT = 40
 cell_color = "#FFFF00"
 MARGIN = 10
 FPS = 50
+GRAVITY = 0.05
+all_sprites = pygame.sprite.Group()
+clock = pygame.time.Clock()
 STAGES_1 = {0: 'stage_0.png',
               1: 'stage_1.png', 2: 'stage_3.png',
               3: 'stage_5.png', 4: 'stage_6.png',
@@ -63,6 +66,9 @@ class Keyboard:
     # создание поля
     def __init__(self, width, height, left=10, top=10, cell_size=40):
         alpha = "ёйцукенгшщзхъфывапролджэячсмитьбю".upper()
+        self.alpha = {-1: [], 0: [], 1: [], 2: []}   # цвета клавиш
+        for a in alpha:
+            self.alpha[-1].append(a)
         self.width = width
         self.height = height
         self.board = [list(alpha[:11]), list(alpha[11:22]), list(alpha[22:])]
@@ -77,16 +83,26 @@ class Keyboard:
         self.top = top
         self.cell_size = cell_size
 
-    def render(self, scr):
-        row = 6
-        col = 0
+    def render(self, scr):  # отрисовка клавиатуры
         for row in range(3):
             for col in range(11):
                 x = (row + 7) * self.cell_size + (row + 8) * MARGIN
                 y = col * self.cell_size + (col + 1) * MARGIN
-                pygame.draw.rect(screen, (100, 100, 100), (y, x, WIDTH, HEIGHT), border_radius=7)
+                if self.board[row][col] in self.alpha[1]:       # проверяем, каким цветом рисовать клавишу
+                    cell_color = (255, 255, 0)
+                    text_color = (0, 0, 0)
+                elif self.board[row][col] in self.alpha[2]:
+                    cell_color = (255, 255, 255)
+                    text_color = (0, 0, 0)
+                elif self.board[row][col] in self.alpha[0]:       # проверяем, каким цветом рисовать клавишу
+                    cell_color = (100, 100, 100)
+                    text_color = (255, 255, 255)
+                elif self.board[row][col] in self.alpha[-1]:
+                    cell_color = (0, 0, 0)
+                    text_color = (255, 255, 255)
+                pygame.draw.rect(screen, cell_color, (y, x, WIDTH, HEIGHT), border_radius=7)
                 font = pygame.font.Font(None, 40)
-                text = font.render(f'{self.board[row][col]}', True, (255, 255, 255))
+                text = font.render(f'{self.board[row][col]}', True, text_color)
                 screen.blit(text, (self.left + (col + 1) * MARGIN + col * self.cell_size, self.top + (row + 8) * MARGIN + (row + 7) * self.cell_size))
 
     def get_cell(self, mouse_pos):
@@ -126,8 +142,9 @@ class Board:
         self.cell_size = cell_size
 
     def render(self, scr):
-        answers = list(answer)
+        # answers = list(answer)
         for row in range(6):
+            answers = list(answer)
             self.cnt = 0
             for col in range(5):
                 if self.board[row][col] == "":
@@ -135,10 +152,13 @@ class Board:
                 elif self.board[row][col] == answer[col]:
                     self.cnt += 1
                     draw_cell(self.board[row][col], (0, 0, 0), (255, 255, 0), row, col)
+                    keyboard.alpha[1].append(self.board[row][col])
                 elif self.board[row][col] in answers:
+                    keyboard.alpha[2].append(self.board[row][col])
                     draw_cell(self.board[row][col], (0, 0, 0), (255, 255, 255), row, col)
                 else:
                     draw_cell(self.board[row][col], (255, 255, 255), (100, 100, 100), row, col)
+                    keyboard.alpha[0].append(self.board[row][col])
                 if self.board[row][col] in answers:
                     answers.remove(self.board[row][col])
             if self.cnt == 5:
@@ -194,6 +214,38 @@ class Word(Board):
                 return False
 
 
+class Particle(pygame.sprite.Sprite):
+    screen_rect = (0, 0, SIZE[0], SIZE[1])
+    # сгенерируем частицы разного размера
+    fire = [load_image("star.png")]
+    for scale in (5, 10, 20, 30):
+        fire.append(pygame.transform.scale(fire[0], (scale, scale)))
+
+    def __init__(self, pos, dx, dy):
+        super().__init__(all_sprites)
+        self.image = random.choice(self.fire)
+        self.rect = self.image.get_rect()
+
+        # у каждой частицы своя скорость — это вектор
+        self.velocity = [dx, dy]
+        # и свои координаты
+        self.rect.x, self.rect.y = pos
+
+        # гравитация будет одинаковой (значение константы)
+        self.gravity = GRAVITY
+
+    def update(self):
+        # применяем гравитационный эффект:
+        # движение с ускорением под действием гравитации
+        self.velocity[1] += self.gravity
+        # перемещаем частицу
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        # убиваем, если частица ушла за экран
+        if not self.rect.colliderect(self.screen_rect):
+            self.kill()
+
+
 class Game:
     def __init__(self, board, word, keyboard):
         self.board = board
@@ -215,19 +267,71 @@ def terminate():
 
 
 def start_screen():
-    intro_text = ["ЗАСТАВКА", "",
-                  "Правила игры",
-                  "Чтобы вводить новое слово, ",
+    intro_text = ["Чтобы вызвать правила игры, ",
                   "нажмите клавишу пробел",
-                  "",
+                  "", "", "", "", "", "", "", "",
                   "Чтобы начать игру кликните мышкой"]
     clock = pygame.time.Clock()
-    fon = pygame.transform.scale(load_image('newfon.jpg'), SIZE)
+    fon = pygame.transform.scale(load_image('fon.png'), SIZE)
     screen.blit(fon, (0, 0))
     font = pygame.font.Font(None, 30)
     text_coord = 50
     for line in intro_text:
-        string_rendered = font.render(line, 1, pygame.Color('white'))
+        if text_coord < 200:
+            string_rendered = font.render(line, 1, pygame.Color('white'))
+        else:
+            string_rendered = font.render(line, 1, pygame.Color('red'))
+        intro_rect = string_rendered.get_rect()
+        text_coord += 10
+        intro_rect.top = text_coord
+        intro_rect.x = 100
+        text_coord += intro_rect.height
+        screen.blit(string_rendered, intro_rect)
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                return  # начинаем игру
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                help_screen()
+                return  # начинаем игру
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def help_screen():
+    intro_text = ["КАК ОТГАДАТЬ СЛОВО В 5 БУКВ?",
+                  "",
+                  "Смысл игры — подобрать правильное слово,",
+                  "состоящие из пяти букв. На это каждому пользователю",
+                  "предоставляется 6 попыток.  Разумеется, как и у любой",
+                  "игры подобного типа, у рассматриваемого ивента имеются",
+                  "свои правила, помогающие облегчить подбор букв:",
+                  "1. Вводить существительное необходимо",
+                  "   в единственном числе.",
+                  "2. Если буква окрашена в серый цвет,",
+                  "   значит, ее нет в нужном слове.",
+                  "3. Если буква окрашена в белый цвет, ",
+                  "   значит, она есть в слове, но стоит в другом месте.",
+                  "4. Если буква окрашена в желтый цвет, значит, ",
+                  "   она есть в слове и стоит в правильном месте.", ]
+    clock = pygame.time.Clock()
+    # fon = pygame.transform.scale(load_image('fon.png'), SIZE)
+    screen.fill((100, 100, 100))
+    # screen.blit(fon, (0, 0))
+    font = pygame.font.Font(None, 30)
+    text_coord = 20
+    for line in intro_text:
+        if text_coord == 20:
+            string_rendered = font.render(line, 1, pygame.Color('yellow'))
+        elif text_coord >= 210:
+            string_rendered = font.render(line, 1, pygame.Color('cyan'))
+        else:
+            string_rendered = font.render(line, 1, pygame.Color('white'))
+        intro_rect = string_rendered.get_rect()
+        # string_rendered = font.render(line, 1, pygame.Color('white'))
         intro_rect = string_rendered.get_rect()
         text_coord += 10
         intro_rect.top = text_coord
@@ -239,34 +343,32 @@ def start_screen():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
-            elif event.type == pygame.KEYDOWN or \
-                    event.type == pygame.MOUSEBUTTONDOWN:
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                return  # начинаем игру
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                start_screen()
                 return  # начинаем игру
         pygame.display.flip()
         clock.tick(FPS)
 
-
 def win_screen():
+
+    def create_particles(position):
+        # количество создаваемых частиц
+        particle_count = 40
+        # возможные скорости
+        numbers = range(-5, 6)
+        for _ in range(particle_count):
+            Particle(position, random.choice(numbers), random.choice(numbers))
+
     intro_text = ["Поздравляем!", "",
                   f"Вы выиграли, это было слово {answer.strip()}",
                   ]
     clock = pygame.time.Clock()
-    screen.fill("blue")
-    viselica = pygame.transform.scale(load_image(STAGES_1[tries - 1], -1), (SIZE[0] // 2, SIZE[1] // 2))
-    screen.blit(viselica, (0, 180))
-    lifes = pygame.transform.scale(load_image(STAGES_2[tries - 1], "DD0D14"), (150, 30))
-    screen.blit(lifes, (350, 200))
-    font = pygame.font.Font(None, 30)
-    text_coord = 50
-    for line in intro_text:
-        string_rendered = font.render(line, 1, pygame.Color('white'))
-        intro_rect = string_rendered.get_rect()
-        text_coord += 10
-        intro_rect.top = text_coord
-        intro_rect.x = 10
-        text_coord += intro_rect.height
-        screen.blit(string_rendered, intro_rect)
 
+    create_particles((SIZE[0] // 2, SIZE[1] // 2))
+    create_particles((SIZE[0] // 2 - 150, SIZE[1] // 2 - 150))
+    create_particles((SIZE[0] // 2 + 150, SIZE[1] // 2 - 150))
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -274,6 +376,23 @@ def win_screen():
             elif event.type == pygame.KEYDOWN or \
                     event.type == pygame.MOUSEBUTTONDOWN:
                 return
+        screen.fill("blue")
+        all_sprites.update()
+        all_sprites.draw(screen)
+        viselica = pygame.transform.scale(load_image(STAGES_1[tries - 1], -1), (SIZE[0] // 2, SIZE[1] // 2))
+        screen.blit(viselica, (0, 180))
+        lifes = pygame.transform.scale(load_image(STAGES_2[tries - 1], "DD0D14"), (150, 30))
+        screen.blit(lifes, (350, 200))
+        font = pygame.font.Font(None, 30)
+        text_coord = 50
+        for line in intro_text:
+            string_rendered = font.render(line, 1, pygame.Color('white'))
+            intro_rect = string_rendered.get_rect()
+            text_coord += 10
+            intro_rect.top = text_coord
+            intro_rect.x = 10
+            text_coord += intro_rect.height
+            screen.blit(string_rendered, intro_rect)
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -283,8 +402,6 @@ def game_over_screen():
                   f"Вы проиграли, это было слово {answer.strip()}",
                   ]
     clock = pygame.time.Clock()
-    # fon = pygame.transform.scale(load_image('newfon.jpg'), SIZE)
-    # screen.blit(fon, (0, 0))
     screen.fill("red")
     viselica = pygame.transform.scale(load_image('stage_10.png'), (SIZE[0] // 2, SIZE[1] // 2))
     screen.blit(viselica, (0, 180))
