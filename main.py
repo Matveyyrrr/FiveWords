@@ -16,6 +16,12 @@ FPS = 50
 GRAVITY = 0.05
 all_sprites = pygame.sprite.Group()
 clock = pygame.time.Clock()
+pygame.mixer.init()
+button_sound = pygame.mixer.Sound('data/button_sound.mp3')
+# почему-то не открывает этот фоновый звук, нужно найти другой файл
+# think_sound = pygame.mixer.Sound('data/game_sound.mp3')
+win_sound = pygame.mixer.Sound('data/win_sound.mp3')
+lose_sound = pygame.mixer.Sound('data/lose_sound.mp3')
 STAGES_1 = {0: 'stage_0.png',
               1: 'stage_1.png', 2: 'stage_3.png',
               3: 'stage_5.png', 4: 'stage_6.png',
@@ -61,7 +67,27 @@ def draw_cell(letter, letter_col, cell_col, row, col, cell_size=40, not_filled=F
     text = font.render(f'{letter}', True, letter_col)
     screen.blit(text, (8 + (col + 1) * MARGIN + col * cell_size, 10 + (row + 1) * MARGIN + row * cell_size))
 
+# класс снежинок на заднем фоне
+class Snow(pygame.sprite.Sprite):
+    screen_rect = (0, 0, SIZE[0], SIZE[1])
+    image = pygame.transform.scale(load_image("snow.png"), (15, 15))
 
+    def __init__(self, pos):
+        super().__init__(back_sprites)
+        self.image = Snow.image
+        self.rect = self.image.get_rect()
+        # self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x = pos[0]
+        self.rect.y = pos[1]
+
+    def update(self):
+        self.rect = self.rect.move(0, 1)
+        self.rect.size = self.rect.size
+
+        if not self.rect.colliderect(self.screen_rect):
+            self.kill()
+
+# класс клавиатуры с буквами
 class Keyboard:
     # создание поля
     def __init__(self, width, height, left=10, top=10, cell_size=40):
@@ -119,9 +145,10 @@ class Keyboard:
             return self.on_press(x, y)
 
     def on_press(self, x, y):
+        button_sound.play()
         return self.board[x][y]
 
-
+# класс доски, на котором высвечиваются попытки ввода слов
 class Board:
     # создание поля
     flag = False
@@ -167,7 +194,7 @@ class Board:
     def win(self):
         return self.win_or_lose
 
-
+# жизни. Отрисовывает остаток попыток и рисует новый уровень виселицы
 class Lifes:
 
     def __init__(self, tries=0):
@@ -185,17 +212,33 @@ class Lifes:
         self.image_1 = load_image(STAGES_1[(self.tries) % 7], -1)
         self.image_2 = load_image(STAGES_2[(self.tries) % 7], -1)
 
-
+# поле ввода ответа
 class Word(Board):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT)
         self.board = ["_"] * 5
+        # в случае ввода несуществующего слова, вывод ошибки
+        self.error = ""
+        self.incorrect = False
+        self.text_color = "yellow"
 
     def render(self, scr):
         for col, letter in enumerate(self.board):
-            draw_cell(letter, (200, 200, 255), (50, 50, 255), 6, col)
+            draw_cell(letter, self.text_color, (150, 150, 150), 6, col)
         draw_cell("<-", cell_color, (100, 100, 100), 6, 5)
         draw_cell("\/", cell_color, (100, 100, 100), 6, 6)
+        if self.incorrect:
+            self.text_color = "red"
+            self.error = ["В нашей базе слов", "не нашлось такого слова"]
+        else:
+            self.text_color = "yellow"
+            self.error = ["", ""]
+        font = pygame.font.Font(None, 30)
+        text = font.render(self.error[0], 1, pygame.Color('yellow'))
+        screen.blit(text, (360, 310))
+        text = font.render(self.error[1], 1, pygame.Color('yellow'))
+        screen.blit(text, (360, 330))
+
 
     def get_cell(self, mouse_pos):
         y, x = mouse_pos
@@ -213,8 +256,8 @@ class Word(Board):
             else:
                 return False
 
-
-class Particle(pygame.sprite.Sprite):
+# звезды-салюты, которые вылетают в случае победы
+class Star(pygame.sprite.Sprite):
     screen_rect = (0, 0, SIZE[0], SIZE[1])
     # сгенерируем частицы разного размера
     fire = [load_image("star.png")]
@@ -245,27 +288,34 @@ class Particle(pygame.sprite.Sprite):
         if not self.rect.colliderect(self.screen_rect):
             self.kill()
 
+# снежки, которые летят в основной игре
+back_sprites = pygame.sprite.Group()
 
+# отрисовка игры
 class Game:
     def __init__(self, board, word, keyboard):
         self.board = board
         self.word = word
         self.keyboard = keyboard
+        #think_sound.play()
 
     def render(self, screen):
+        back_sprites.update()
+        back_sprites.draw(screen)
         self.board.render(screen)
         self.keyboard.render(screen)
         self.word.render(screen)
+
         if board.win():
             win_screen()
             return
 
-
+# закрыть окно (завершить игру)
 def terminate():
     pygame.quit()
     sys.exit()
 
-
+# начальное окно
 def start_screen():
     intro_text = ["Чтобы вызвать правила игры, ",
                   "нажмите клавишу пробел",
@@ -300,7 +350,7 @@ def start_screen():
         pygame.display.flip()
         clock.tick(FPS)
 
-
+# правила игры
 def help_screen():
     intro_text = ["КАК ОТГАДАТЬ СЛОВО В 5 БУКВ?",
                   "",
@@ -318,9 +368,7 @@ def help_screen():
                   "4. Если буква окрашена в желтый цвет, значит, ",
                   "   она есть в слове и стоит в правильном месте.", ]
     clock = pygame.time.Clock()
-    # fon = pygame.transform.scale(load_image('fon.png'), SIZE)
     screen.fill((100, 100, 100))
-    # screen.blit(fon, (0, 0))
     font = pygame.font.Font(None, 30)
     text_coord = 20
     for line in intro_text:
@@ -331,7 +379,6 @@ def help_screen():
         else:
             string_rendered = font.render(line, 1, pygame.Color('white'))
         intro_rect = string_rendered.get_rect()
-        # string_rendered = font.render(line, 1, pygame.Color('white'))
         intro_rect = string_rendered.get_rect()
         text_coord += 10
         intro_rect.top = text_coord
@@ -351,38 +398,46 @@ def help_screen():
         pygame.display.flip()
         clock.tick(FPS)
 
+# финальное окно - в случае выигрыша
 def win_screen():
-
+    # рисуем салют из звездочек
     def create_particles(position):
         # количество создаваемых частиц
         particle_count = 40
         # возможные скорости
         numbers = range(-5, 6)
         for _ in range(particle_count):
-            Particle(position, random.choice(numbers), random.choice(numbers))
+            Star(position, random.choice(numbers), random.choice(numbers))
 
     intro_text = ["Поздравляем!", "",
                   f"Вы выиграли, это было слово {answer.strip()}",
+                  "", "", "", "", "",
+                  "Для выхода нажмите клавишу E"
                   ]
     clock = pygame.time.Clock()
 
     create_particles((SIZE[0] // 2, SIZE[1] // 2))
     create_particles((SIZE[0] // 2 - 150, SIZE[1] // 2 - 150))
     create_particles((SIZE[0] // 2 + 150, SIZE[1] // 2 - 150))
+    win_sound.play()
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                win_sound.stop()
                 terminate()
-            elif event.type == pygame.KEYDOWN or \
-                    event.type == pygame.MOUSEBUTTONDOWN:
-                return
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_e:
+                    win_sound.stop()
+                    terminate()
+            elif event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.KEYDOWN:
+                # если не хватило звездочек, можно еще кликать мышью -)))
+                x, y = pygame.mouse.get_pos()
+                create_particles((x, y))
+                create_particles((x - 150, y - 150))
+                create_particles((x + 150, y - 150))
         screen.fill("blue")
         all_sprites.update()
         all_sprites.draw(screen)
-        viselica = pygame.transform.scale(load_image(STAGES_1[tries - 1], -1), (SIZE[0] // 2, SIZE[1] // 2))
-        screen.blit(viselica, (0, 180))
-        lifes = pygame.transform.scale(load_image(STAGES_2[tries - 1], "DD0D14"), (150, 30))
-        screen.blit(lifes, (350, 200))
         font = pygame.font.Font(None, 30)
         text_coord = 50
         for line in intro_text:
@@ -396,8 +451,9 @@ def win_screen():
         pygame.display.flip()
         clock.tick(FPS)
 
-
+# финальное окно - в случае проигрыша
 def game_over_screen():
+    lose_sound.play()
     intro_text = ["GAME OVER", "",
                   f"Вы проиграли, это было слово {answer.strip()}",
                   ]
@@ -429,13 +485,14 @@ def game_over_screen():
         clock.tick(FPS)
 
 
+# начинаем игру
 start_screen()
-
 running = True
 WORDS = load_from_file("words.txt")
+# база имеющихся слов (нужно дополнить)
 NORMAL_WORDS = load_from_file("words2.txt")
 win_or_lose = False
-answer = random.choice(NORMAL_WORDS)
+answer = random.choice(WORDS)
 board = Board(WIDTH, HEIGHT, answers=answer[:])
 keyboard = Keyboard(WIDTH, HEIGHT)
 word_input = Word()
@@ -444,7 +501,8 @@ tries = 0
 lifes = Lifes()
 hod = False
 
-print(answer)
+# print(answer)
+# think_sound.play()  # пока не работает
 while running and tries < 6:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -453,7 +511,7 @@ while running and tries < 6:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
             word = list(input().upper())
             while len(word) != 5:
-                print("Введите существительное из 5 букв")
+                # print("Введите существительное из 5 букв")
                 word = list(input().upper())
             board.board[tries] = word
             if word == answer:
@@ -468,6 +526,7 @@ while running and tries < 6:
                     word_input.board = list(text)
                     hod = True
             if word_input.get_press(event.pos):
+                word_input.incorrect = False
                 last = "".join(word_input.board).strip("_")
                 if len(last) > 0:
                     last = last[:-1]
@@ -480,7 +539,12 @@ while running and tries < 6:
                 if not word_input.get_press(event.pos):
                     last = "".join(word_input.board).strip("_")
                     text = list(last)
-                    if len(text) == 5:
+                    # проверка, существует ли такое слово (пока мало слов, нужно добавить)
+                    if last not in NORMAL_WORDS:
+                        print(last)
+                        word_input.incorrect = True
+                    elif len(text) == 5:
+                        word_input.incorrect = False
                         board.board[tries] = list(text)
                         tries += 1
                         lifes.tries += 1
@@ -492,11 +556,12 @@ while running and tries < 6:
         break
 
     game.render(screen)
+    Snow((random.randrange(650), random.randrange(500)))
     if running and tries > 0:
         lifes.next_img(1)
         lifes.render(screen, tries)
     pygame.display.update()
-    screen.fill("#99D9EA")
+    screen.fill("blue")
 
 if not win_or_lose:
     game_over_screen()
